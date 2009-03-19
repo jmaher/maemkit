@@ -9,6 +9,9 @@ class maemkit(object):
   testdriver = ""
   config_file = "maemkit.cfg"
 
+  #TODO: figure out this in a smarter way.  Really only used for split and sub based on regex
+  dirtype = "/"
+
   testtypes = ["mochitest","chrome","reftest","crashtest","xpcshell"]
 
   def __init__(self):
@@ -52,6 +55,7 @@ class maemkit(object):
     if (config.has_section(input_section)):
       for item in config.items(input_section):
         temp_options[item[0]] = item[1]
+
     return temp_options
 
   def getConfig(self):
@@ -86,12 +90,14 @@ class maemkit(object):
 
   def addCommand(self, newcmd, retry=False, timeout=60):
     timeout = 60
-    topsrc = self.options["testroot"]
+    testroot = os.path.normpath(self.options["testroot"])
+    xrepath = os.path.normpath(self.options["xre-path"])
+    topsrc = testroot
     myenv = copy.copy(os.environ)
-    myenv["NATIVE_TOPSRCDIR"] = self.options["testroot"]
-    myenv["TOPSRCDIR"] = self.options["testroot"]
-    myenv["MOZILLA_FIVE_HOME"] = self.options["xre-path"]
-    myenv["LD_LIBRARY_PATH"] = self.options["xre-path"]
+    myenv["NATIVE_TOPSRCDIR"] = testroot
+    myenv["TOPSRCDIR"] = testroot
+    myenv["MOZILLA_FIVE_HOME"] = xrepath
+    myenv["LD_LIBRARY_PATH"] = xrepath
 
     parts = []
     for cmd in newcmd.split(" "):
@@ -124,6 +130,7 @@ class maemkit(object):
 
 
   def cleanup(self):
+    #TODO: figure out a method for killing process other than killall.  maybe tskill?  and what about appname instead of fennec
     self.addCommand("killall fennec")
     self.addCommand("killall ssltunnel")
     self.addCommand("killall xpcshell")
@@ -132,7 +139,7 @@ class maemkit(object):
     # returns the name of a log file from a directory
     logPrefix = "log_"
     logExtension = ".txt"
-    p = re.compile('/')
+    p = re.compile(self.dirtype)
     logMiddle = p.sub('_', aDir)
     logFileName = logPrefix + logMiddle + logExtension
     return logFileName
@@ -164,16 +171,16 @@ class maemkit(object):
 
   def copy(self, src, dst):
     self.shellCommand("cp " + src + " " + dst)
-#    shutils.copytree(src, dst)
+#    shutils.copytree(os.path.normpath(src), os.path.normpath(dst))
 
   def move(self, src, dst):
     self.shellCommand("mv " + src + " " + dst)
-#    shutils.move(src, dst)
+#    shutils.move(os.path.normpath(src), os.path.normpath(dst))
 
   def mkdir(self, src):
     self.shellCommand("mkdir " + src)
-#    os.makedirs(src)
+#    os.makedirs(os.path.normpath(src))
 
   def rmdir(self, src):
     self.shellCommand("rm -Rf " + src)
-#    shutils.rmtree(src)
+#    shutils.rmtree(os.path.normpath(src))

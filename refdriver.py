@@ -11,12 +11,12 @@ class refdriver(maemkit.maemkit):
     except ValueError: self.directories.append(targetDir)
 
   def parseManifest(self, manifest):
-    p = re.compile("^include ([a-zA-Z0-9\/\-\.]+)")
+    p = re.compile("^include ([a-zA-Z0-9\\\/\-\.]+)")
 
-    parts = manifest.split("/")
+    parts = manifest.split(self.dirtype)
     num = len(parts) - 1
     name = parts[num]
-    rootdir = "/".join(parts[0:num])
+    rootdir = self.dirtype.join(parts[0:num])
 
     #backup manifest, use backup incase we are running again
     self.move(manifest + ".bak", manifest + "")
@@ -26,43 +26,49 @@ class refdriver(maemkit.maemkit):
     lines = fHandle.readlines()
     fHandle.close()
 
+    self.addDir(rootdir)
+
     #rewrite manifest with include lines # out
     fHandle = open(manifest, "w")
     for line in lines:
       test = p.match(line)
       if (test):
-        self.addDir(rootdir + "/" + test.group(1))
+        self.addDir(os.path.normpath(os.path.join(rootdir, test.group(1))))
         line = "#" + line
       fHandle.write(line)
     fHandle.close()
 
   #parse out manifest for main reftest.list, and any splitdirs
   def findDirs(self, rootdir, rootfile):
-    self.parseManifest(refdriver.options["testroot"] + "/" + rootdir + "/" + rootfile)
+    self.parseManifest(os.path.normpath(os.path.join(os.path.join(refdriver.options["testroot"], rootdir), rootfile)))
     for splitdir in self.options["split-directories"]:
-      if (splitdir.strip() != ""): self.parseManifest(refdriver.options["testroot"] + "/" + splitdir)
+      try:
+        if (self.directories.index(os.path.normpath(splitdir.strip())) >= 0):
+          self.parseManifest(os.path.normpath(os.path.join(refdriver.options["testroot"], splitdir)))
+      except: continue
 
   def addOptions(self, input):
     for option in input:
       if (option == "split-directories"):
         self.options[option] = []
-        for part in input[option].split(','): self.options[option].append(part.strip('\"'))
+        for part in input[option].split(','): self.options[option].append(os.path.normpath(part.strip('\"')))
       else:
         self.options[option] = input[option]
 
   #split directories, do parallel
   def prepTests(self):
-    self.rmdir(str(refdriver.options["logdir"]))
-    self.mkdir(str(refdriver.options["logdir"]))
+    logdir = os.path.normpath(str(refdriver.options["logdir"]))
+    self.rmdir(logdir)
+    self.mkdir(logdir)
 
     for dir in self.directories:
-      test = dir.split(refdriver.options["testroot"])
-      test = test[1].lstrip("/")
+      test = dir.split(os.path.normpath(refdriver.options["testroot"]))
+      test = test[1].lstrip(self.dirtype)
       try:
         if (self.options["split-directories"].index(test) >= 0): self.splitManifest(dir)
       except ValueError: continue
 
-    refdriver.directories = refdriver.splitListParallel(self.directories, self.options)
+    refdriver.directories = refdriver.splitListParallel(self, self.directories, self.options)
 
   #split a manifest info many parts defined by split-percentage as the maximum # of items
   def splitManifest(self, dir):
@@ -90,8 +96,7 @@ class reftest(refdriver):
   reftest = "reftest.list"
 
   def __init__(self, mkit):
-    refdriver.__init__(self)
-    self.addoptions(mkit.config_options["reftest"])
+    self.addOptions(mkit.config_options["reftest"])
 
   def addOptions(self, options):
     refdriver.addOptions(self, options)
@@ -103,14 +108,16 @@ class reftest(refdriver):
     refdriver.prepTests(self)
 
   def runTests(self):
-    if (os.path.exists(refdriver.options["logdir"])):
-      self.move(refdriver.options["logdir"], refdriver.options["logdir"] + ".bak")
-    self.mkdir(refdriver.options["logdir"])
+    logdir = os.path.normpath(str(refdriver.options["logdir"]))
+    if (os.path.exists(logdir)):
+      self.move(logdir, logdir + ".bak")
+    self.mkdir(logdir)
 
 
     for dir in refdriver.directories:
-      refdriver.addCommand(refdriver.options["appname"] + " -reftest " + dir + " > " + refdriver.options["logdir"] + "/" + refdriver.getLogFileName(dir))
-      refdriver.cleanup()
+      utilname = os.path.normpath(os.path.join(self.options["utility-path"], "runreftest.py"))
+      print refdriver.addCommand(self, "python " + utilname + " --appname=" + os.path.normpath(refdriver.options["appname"]) + " " + dir, True)
+      refdriver.cleanup(self)
 
 class crashtest(refdriver):
 
@@ -118,23 +125,24 @@ class crashtest(refdriver):
   crashtest = "crashtests.list"
 
   def __init__(self, mkit):
-    refdriver.__init__(self)
     self.addOptions(mkit.config_options["crashtest"])
 
   def addOptions(self, options):
     refdriver.addOptions(self, options)
 
   def getTests(self):
-    refdriver.findDirs(self, self.crashtestdir, self.crashtest)
+    refdriver.findDirs(self, os.path.normpath(self.crashtestdir), self.crashtest)
 
   def prepTests(self):
     refdriver.prepTests(self)
 
   def runTests(self):
-    if (os.path.exists(refdriver.options["logdir"])):
-      self.move(refdriver.options["logdir"], refdriver.options["logdir"] + ".bak")
-    self.mkdir(refdriver.options["logdir"])
+    logdir = os.path.normpath(refdriver.options["logdir"])
+    if (os.path.exists(logdir)):
+      self.move(logdir, logdir + ".bak")
+    self.mkdir(logdir)
 
     for dir in refdriver.directories:
-      refdriver.addCommand(refdriver.options["appname"] + " -reftest " + dir + " > " + refdriver.options["logdir"] + "/" + refdriver.getLogFileName(dir))
-      refdriver.cleanup()
+      utilname = os.path.normpath(os.path.join(self.options["utility-path"], "runreftest.py"))
+      print refdriver.addCommand(self, "python " + utilname + " --appname=" + refdriver.options["appname"] + " " + dir, True)
+      refdriver.cleanup(self)
