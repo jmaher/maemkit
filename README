@@ -1,0 +1,79 @@
+A quick maemkit overview
+------------------------
+
+Usage:
+python maemkit-chunked.py --testtype=mochitest  <- runs all the mochitests
+python maemkit-chunked.py --testtype=mochitest --total-clients=3 --test-client=1 <- runs 1/3 of the mochitests
+
+
+Why Maemkit:
+------------
+
+Maemkit is a wrapper around the unittests that Mozilla uses to test Firefox.  Maemkit does
+a few things different:
+
+In general for all tests:
+ - run a subset of the total directories(chunks) to test to allow multiple maemkits to test in parallel
+ - utilize a .cfg config file to reduce command line options and do more
+ - allow for smaller log files to preserve memory/disk on small devices
+
+For Mochitest:
+ - Run each directory of tests by itself
+ - Split larger directories into smaller chunks (as defined in the maemkit.cfg file) as subdirectories
+
+For Chrome:
+ - Run each top level directory as a single run
+
+For Reftest/Crashtest:
+ - Run each #include from the master manifest as a seperate test chunk
+ - Split larger directories into smaller .manifest files to make smaller chunks
+
+For Xpcshell:
+ - Run each test as a chunk instead of all tests at once
+
+
+
+Configuring Maemkit to run:
+---------------------------
+
+The recommmended way to run Maemkit is to configure the .cfg file and just run:
+python maemkit-chunked.py --testttype=<your test>
+
+The .cfg file will take care of the rest of the options.  Theer are 6 sections in the .cfg file:
+ - general
+ - mochitest
+ - chrome
+ - reftest
+ - crashtest
+ - xpcshell
+
+In general, everything is treated as:
+<option> = <string value>
+ * NOTE: there are no quotes surround the string value
+ * NOTE: if you want a int value such as total-clients, just put the int in and we will treat that as an int
+
+To configure for your environment, you will need to fix the xre-path and appname.
+
+For example, in Firefox if you build a private build and issue a "make package" you will have a .tar.bz2 file.
+Take the .tar.bz2 file and put it in a seperate directory (/home/user/myfox) and un tar it.  
+
+If you do this, set these variables:
+xre-path = /home/user/myfox/firefox
+appname = /home/user/myfox/firefox/firefox
+ * NOTE: we are using full paths here, please use full paths instead of relative paths
+
+The xre-path refers to the xulrunner bits path.  This is in the root of the firefox directory structure. 
+The appname refers to the executable path of the application you are testing (firefox).  
+
+Now to run a test like mochitest, we need to s et the utility-path, certificate-path, and testroot.
+
+You will have to get mochitest by running a "make package-tests" in the firefox objdir.  If you move this to the same location 
+as your firefox (/home/user/myfox) and untar it, you will need to set the variables like this:
+
+utility-path = /home/user/myfox/bin
+certificate-cpath = /home/user/myfox/certs
+testroot = /home/user/myfox/mochitest
+
+
+That is it.  For questions, email me at: joel.maher@gmail.com
+
